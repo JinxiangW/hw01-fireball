@@ -19,13 +19,14 @@ uniform float u_Frequency;
 uniform int u_Noise;
 uniform float u_Time; // in seconds
 uniform vec3 u_Camera;
+uniform vec2 u_Resolution;
 
 // their specific values without knowing the vertices that contributed to them
 in vec4 fs_Nor;
 in vec4 fs_LightVec;
 in vec4 fs_Col;
 in vec3 fs_world;
-
+in vec4 fs_Up;
 out vec4 out_Col; // This is the final output color that you will see on your
                   // screen for the pixel that is currently being processed.
 #define MOD3 vec3(443.8975,397.2973, 491.1871)
@@ -44,58 +45,22 @@ float hash13(vec3 p)
     return fract((p3.x + p3.y) * p3.z);
 }
 
+float getBias(float t, float b) {
+    return (t / ((((1.0/b) - 2.0)*(1.0 - t))+1.0));
+}
+
+float getGain(float t, float gain)
+{
+  if(t < 0.5)
+    return getBias(t * 2.0, gain)/2.0;
+  else
+    return getBias(t * 2.0 - 1.0,1.0 - gain)/2.0 + 0.5;
+}
+
 vec3 rand(vec3 p){
  	const vec3 k = vec3( 3.1415926, 2.71828,6.62607015);
  	p = p*k + p.yzx;
  	return -1.0 + 2.0*fract( 2.0 * k * fract( p.x*p.y*(p.x+p.y)) );
-}
-
-float perlin3D(vec3 p){
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    vec3 u = f*f*f*(f*(f*6.0-15.0)+10.0);
-    
-    //random gradiant
-    vec3 g1 = rand(i+vec3(0.0,0.0,0.0));
-    vec3 g2 = rand(i+vec3(1.0,0.0,0.0));
-    vec3 g3 = rand(i+vec3(0.0,1.0,0.0));
-    vec3 g4 = rand(i+vec3(1.0,1.0,0.0));
-    vec3 g5 = rand(i+vec3(0.0,0.0,1.0));
-    vec3 g6 = rand(i+vec3(1.0,0.0,1.0));
-    vec3 g7 = rand(i+vec3(0.0,1.0,1.0));
-    vec3 g8 = rand(i+vec3(1.0,1.0,1.0));
-    
-    //direction vector
-    vec3 d1 = f - vec3(0.0,0.0,0.0);
-    vec3 d2 = f - vec3(1.0,0.0,0.0);
-    vec3 d3 = f - vec3(0.0,1.0,0.0);
-    vec3 d4 = f - vec3(1.0,1.0,0.0);
-    vec3 d5 = f - vec3(0.0,0.0,1.0);
-    vec3 d6 = f - vec3(1.0,0.0,1.0);
-    vec3 d7 = f - vec3(0.0,1.0,1.0);
-    vec3 d8 = f - vec3(1.0,1.0,1.0);
-    
-    //weight
-    float n1 = dot(g1, d1);
-    float n2 = dot(g2, d2);
-    float n3 = dot(g3, d3);
-    float n4 = dot(g4, d4);
-    float n5 = dot(g5, d5);
-    float n6 = dot(g6, d6);
-    float n7 = dot(g7, d7);
-    float n8 = dot(g8, d8);
-    
-    //trilinear interpolation
-    float a = mix(n1,n2,u.x);
-    float b = mix(n3,n4,u.x);
-    float c1 = mix(a,b,u.y);
-    a = mix(n5,n6,u.x);
-    b = mix(n7,n8,u.x);
-    float c2 = mix(a,b,u.y);
-    float c = mix(c1,c2,u.z);
-    
-    
-    return c;
 }
 
 // 3d fbm function
@@ -103,167 +68,73 @@ float cubic(float a) {
     return a * a * (3.0 - 2.0 * a);
 }
 
-float interphash13(vec3 pos) {
-    float x = pos.x;
-    float y = pos.y;
-    float z = pos.z;
-
-    int intX = int(floor(x));
-    float fractX = fract(x);
-    int intY = int(floor(y));
-    float fractY = fract(y);
-    int intZ = int(floor(z));
-    float fractZ = fract(z);
-
-    float v1 = hash13(vec3(intX, intY, intZ));
-    float v2 = hash13(vec3(intX + 1, intY, intZ));
-    float v3 = hash13(vec3(intX, intY + 1, intZ));
-    float v4 = hash13(vec3(intX + 1, intY + 1, intZ));
-    float v5 = hash13(vec3(intX, intY, intZ + 1));
-    float v6 = hash13(vec3(intX + 1, intY, intZ + 1));
-    float v7 = hash13(vec3(intX, intY + 1, intZ + 1));
-    float v8 = hash13(vec3(intX + 1, intY + 1, intZ + 1));
-
-    float i1 = mix(v1, v2, cubic(fractX));
-    float i2 = mix(v3, v4, cubic(fractX));
-    float i3 = mix(v5, v6, cubic(fractX));
-    float i4 = mix(v7, v8, cubic(fractX));
-
-    float j1 = mix(i1, i2, cubic(fractY));
-    float j2 = mix(i3, i4, cubic(fractY));
-
-    return mix(j1, j2, fractZ);
-}
-
-float fbm3D(vec3 pos) {
-    float total = 0.f;
-    float persistence = 0.5f;
-    int octaves = 8;
-    float freq = 2.f;
-    float amp = 0.5f;
-    for(int i = 1; i <= octaves; i++) {
-        total += interphash13(pos * freq) * amp;
-
-        freq *= 2.f;
-        amp *= persistence;
-    }
-    return total;
-}
-
-// Worley 3d
-float worley3D(vec3 pos) {
-    vec3 p = floor(pos);
-    vec3 f = fract(pos);
-
-    float min_dist = 1.0;
-    for(int x = -1; x <= 1; x++) {
-        for(int y = -1; y <= 1; y++) {
-            for(int z = -1; z <= 1; z++) {
-                vec3 neighbor = vec3(x, y, z);
-                vec3 point = vec3(hash13(p + neighbor));
-                vec3 diff = neighbor + point - f;
-                float dist = dot(diff, diff);
-                min_dist = min(min_dist, dist);
-            }
-        }
-    }
-
-    return 1.0 - min_dist;
-}
-
-float sdOctahedron( vec3 p, float s)
+float sdfSphere2d(vec2 p, float r)
 {
-  p = abs(p);
-  return (p.x+p.y+p.z-s)*0.57735027;
+    return length(p) - r;
 }
 
-vec3 calcNormal( in vec3 p ) 
+const vec2 wavedir1 = vec2(0.70710, 0.70710);
+const vec2 wavedir2 = vec2(-0.70710, 0.70710);
+float computeWave(vec2 pos, float amp, vec2 vel, float freq)
 {
-    const float eps = 0.0001;
-    const vec2 h = vec2(eps,0);
-    return normalize( vec3(sdOctahedron(p+h.xyy, 0.4) - sdOctahedron(p-h.xyy, 0.4),
-                           sdOctahedron(p+h.yxy, 0.4) - sdOctahedron(p-h.yxy, 0.4),
-                           sdOctahedron(p+h.yyx, 0.4) - sdOctahedron(p-h.yyx, 0.4) ));
+    vec2 wave = vec2(amp * sin(pos.x * freq + u_Time * vel.x), amp * sin(pos.y * freq + u_Time * vel.y));
+    
+    return length(wave);
 }
 
-const mat4 r15x = mat4(1.0000000,  0.0000000,  0.0000000, 0,
-                        0.0000000,  0.2588190, -0.9659258, 0, 
-                        0.0000000,  0.9659258,  0.2588190, 0,
-                        0, 0, 0, 1);
+float hightOffset(vec3 pos)
+{
+    float wave1 = computeWave(pos.xz + hash12(vec2(114.514, 1919.810)), 0.6, 2.0 * wavedir1, 5.0);
+    float wave2 = computeWave(pos.xz + hash12(vec2(372561.0, 99232.0)), 0.3, 1.0 * wavedir2, 10.0);
+    return wave1 + wave2;
+}
+
 void main()
 {
-        
-        // out_Col = vec4(world, 1.0);
-        // return;
-        
-        // Material base color (before shading)
-        vec4 diffuseColor = u_Color;
+    vec2 up = normalize(vec2(fs_Up.xy));
+    vec3 world = normalize(fs_world);
+    float attenuation = clamp(dot(fs_Nor, vec4(0, 1.0, 0, 0)), 0.0, 1.0);
+    attenuation = getBias(attenuation, 0.15);
+    float offset = hightOffset(world.xyz) * attenuation;
+    world.y += offset;
+    vec3 dx = dFdx(world);
+    vec3 dy = dFdy(world);
+    vec3 normal = normalize(cross(dx, dy));
 
-        // Calculate the diffuse term for half-Lambert shading
-        float diffuseTerm = dot(normalize(fs_Nor), normalize(fs_LightVec));
-        diffuseTerm = diffuseTerm * 0.5 + 0.5;
+    vec2 UV = gl_FragCoord.xy / u_Resolution.y;
+    vec2 screenCenter = vec2(u_Resolution.x / (2.0 * u_Resolution.y), 0.5);
+    // vec3 normal = fs_Nor.xyz;
+    vec3 viewDir = normalize(u_Camera - fs_world);
+    // vec3 normal = fs_Nor.xyz;
+    // Material base color (before shading)
+    vec4 diffuseColor = u_Color;
 
-        // Avoid negative lighting values
-        // diffuseTerm = clamp(diffuseTerm, 0, 1);
+    // Calculate the diffuse term for half-Lambert shading
+    float diffuseTerm = dot(normalize(vec4(normal, 0.0)), normalize(fs_LightVec));
+    diffuseTerm = diffuseTerm * 0.5 + 0.5;
 
-        float ambientTerm = 0.2;
+    float ambientTerm = 0.2;
+    float hightlightTerm = pow(max(dot(normalize(fs_LightVec.xyz + viewDir.xyz), fs_Nor.xyz), 0.0), 32.0);
+    float lightIntensity = diffuseTerm + ambientTerm + hightlightTerm;   //Add a small float value to the color multiplier
+                                                        //to simulate ambient lighting. This ensures that faces that are not
+                                                        //lit by our point light are not completely black.
+    // Compute final shaded color
 
-        float lightIntensity = diffuseTerm + ambientTerm;   //Add a small float value to the color multiplier
-                                                            //to simulate ambient lighting. This ensures that faces that are not
-                                                            //lit by our point light are not completely black.
-        // Compute final shaded color
-        // out_Col = vec4(diffuseColor.rgb * lightIntensity, diffuseColor.a);
-        
-
-        vec3 world = fs_world; 
-        vec4 octColor = vec4(0);
-
-        // create a rotating octahedron
-        if (u_Noise != 0)
-        {
-            // raymarch sdf
-            float t = 0.0;
-            float tmax = 20.0;
-            vec3 rd = normalize(world - u_Camera);
-            for (int i = 0; i < 64 && t < tmax; i++)
-            {
-                vec3 p = u_Camera + t * rd;
-
-                // rotate the octahedron with time
-                float time = u_Time * 0.5;
-                mat3 rtimey = mat3(cos(time * 1.5), 0.0 , -sin(time * 1.5),
-                                      0.0, 1.0, 0.0,
-                                      sin(time * 1.5), 0 , cos(time * 1.5));
-                mat3 rtimez = mat3(cos(time), -sin(time), 0.0,
-                                      sin(time), cos(time), 0.0,
-                                      0.0, 0.0, 1.0);
-
-                vec3 rp = p * rtimey * rtimez;
-
-                float d = sdOctahedron(rp, 0.56);
-                if (d < 0.001)
-                {
-                    octColor = vec4(u_Color.xyz, fbm3D(p * u_Frequency));
-                    float kd = dot(normalize(calcNormal(rp)), normalize(fs_LightVec.xyz)) * 0.5 + 0.5;
-                    octColor *= kd + ambientTerm;
-                    break;
-                }
-                t += d;
-            }
-        }
-
-        float noise = 0.0;
-        if (u_Noise == 1) {
-            noise = perlin3D(world * u_Frequency);
-        } else if (u_Noise == 2) {
-            noise = fbm3D(world * u_Frequency * 0.5);
-            noise = fbm3D((world + noise) * u_Frequency * 0.5);
-            noise = fbm3D((world + noise) * u_Frequency * 0.5);
-        } else if (u_Noise == 3) {
-            noise = worley3D(world * u_Frequency * 0.6);
-        }
-
-        // return output color
-        out_Col = u_Noise == 0 ? vec4(diffuseColor.rgb  * lightIntensity, diffuseColor.a) : vec4(u_Color.xyz * lightIntensity, noise);
-        out_Col = mix(out_Col, octColor, octColor.a);
+    vec3 flame = u_Color.rgb;
+    float theta = dot(viewDir, normal);
+    float threshold = clamp((world.y + 0.5) /  2.0, 0.0, 1.0) * 0.75;
+    if (theta < threshold)
+    {
+        flame = clamp(flame * 1.4, vec3(0.0), vec3(1.0));
+    } else
+    {
+        vec2 sphereCenter = screenCenter + up * 0.13;
+        float transition = sdfSphere2d(UV - sphereCenter, 0.25);
+        transition = 1.0 - clamp((transition + 0.1) / 0.2, 0.0, 1.0);
+        transition = getGain(transition, 0.12) * 0.2;
+        flame = flame * (1.0 + transition);
+    }
+    
+    // return output color
+    out_Col = vec4(flame, diffuseColor.a);
 }

@@ -13,7 +13,7 @@ import ShaderProgram, { Shader } from "./rendering/gl/ShaderProgram";
 // This will be referred to by dat.GUI's functions that add GUI elements.
 const controls = {
   tesselations: 5,
-  color: [24, 24, 130],
+  color: [247, 194, 119],
   freq: 3.2,
   noiseSelection: "Worley",
   "Load Scene": loadScene, // A function pointer, essentially
@@ -48,9 +48,9 @@ function main() {
   const gui = new DAT.GUI();
   gui.add(controls, "tesselations", 0, 8, 1);
   gui.addColor(controls, "color");
-  gui.add(controls, "freq", 0, 10, 0.1);
-  gui.add(controls, "noiseSelection", noiseOptions);
-  gui.add(controls, "Load Scene");
+  // gui.add(controls, "freq", 0, 10, 0.1);
+  // gui.add(controls, "noiseSelection", noiseOptions);
+  // gui.add(controls, "Load Scene");
   // get canvas and webgl context
   const canvas = <HTMLCanvasElement>document.getElementById("canvas");
   const gl = <WebGL2RenderingContext>canvas.getContext("webgl2");
@@ -95,10 +95,8 @@ function main() {
 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.disable(gl.CULL_FACE);
 
-    gl.enable(gl.CULL_FACE);
-    // pass 1 draw back face
-    gl.cullFace(gl.FRONT);
     renderer.render(
       camera,
       lambert,
@@ -107,24 +105,7 @@ function main() {
         // square,
         // cube,
       ],
-      color,
-      controls.freq,
-      noiseOptions.indexOf(controls.noiseSelection)
-    );
-
-    //pass 2 draw front face
-    gl.cullFace(gl.BACK);
-    renderer.render(
-      camera,
-      lambert,
-      [
-        icosphere,
-        // square,
-        // cube,
-      ],
-      color,
-      controls.freq,
-      noiseOptions.indexOf(controls.noiseSelection)
+      color
     );
 
     stats.end();
