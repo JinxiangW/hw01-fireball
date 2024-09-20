@@ -3,6 +3,7 @@ import Drawable from "./Drawable";
 import Camera from "../../Camera";
 import { gl } from "../../globals";
 import ShaderProgram from "./ShaderProgram";
+import { Console } from "console";
 
 // In this file, `gl` is accessible because it is imported above
 class OpenGLRenderer {
@@ -26,8 +27,9 @@ class OpenGLRenderer {
     prog: ShaderProgram,
     drawables: Array<Drawable>,
     inputColor: Array<number> = [1, 0, 0, 1],
-    freq: number = 0.32,
-    noiseOption: number = 0
+    mouseInput: Array<number> = [0, 0],
+    octaves: number = 2,
+    speed: number = 1.0
   ) {
     let model = mat4.create();
     let viewProj = mat4.create();
@@ -43,8 +45,7 @@ class OpenGLRenderer {
     prog.setModelMatrix(model);
     prog.setViewProjMatrix(viewProj);
     prog.setGeometryColor(color);
-    gl.uniform1f(gl.getUniformLocation(prog.prog, "u_Frequency"), freq);
-    gl.uniform1i(gl.getUniformLocation(prog.prog, "u_Noise"), noiseOption);
+
     gl.uniform1f(
       gl.getUniformLocation(prog.prog, "u_Time"),
       performance.now() / 1000
@@ -61,9 +62,30 @@ class OpenGLRenderer {
       this.canvas.height
     );
 
+    // get mouse position
+    gl.uniform2f(
+      gl.getUniformLocation(prog.prog, "u_Mouse"),
+      mouseInput[0],
+      mouseInput[1]
+    );
+
+    // initialize inverse of vp matrix
+    let invVP = mat4.create();
+    mat4.invert(invVP, viewProj);
+    gl.uniformMatrix4fv(
+      gl.getUniformLocation(prog.prog, "u_InvVP"),
+      false,
+      invVP
+    );
+
+    // set octaves
+    gl.uniform1i(gl.getUniformLocation(prog.prog, "u_Octaves"), octaves);
     for (let drawable of drawables) {
       prog.draw(drawable);
     }
+
+    // set speed
+    gl.uniform1f(gl.getUniformLocation(prog.prog, "u_Speed"), speed);
   }
 }
 

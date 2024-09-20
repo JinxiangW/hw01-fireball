@@ -13,8 +13,18 @@ import ShaderProgram, { Shader } from "./rendering/gl/ShaderProgram";
 // This will be referred to by dat.GUI's functions that add GUI elements.
 const controls = {
   tesselations: 5,
-  color: [247, 194, 119],
-  freq: 3.2,
+  color: [254, 230, 158],
+  octaves: 2,
+  speed: 2.2,
+  noiseSelection: "Worley",
+  "Load Scene": loadScene, // A function pointer, essentially
+};
+
+const defaultControls = {
+  tesselations: 5,
+  color: [254, 230, 158],
+  octaves: 2,
+  speed: 2.2,
   noiseSelection: "Worley",
   "Load Scene": loadScene, // A function pointer, essentially
 };
@@ -35,6 +45,8 @@ function loadScene() {
   cube.create();
 }
 
+let mouseX = 0;
+let mouseY = 0;
 function main() {
   // Initial display for framerate
   const stats = Stats();
@@ -48,6 +60,23 @@ function main() {
   const gui = new DAT.GUI();
   gui.add(controls, "tesselations", 0, 8, 1);
   gui.addColor(controls, "color");
+  gui.add(controls, "octaves", 1, 4, 1);
+  gui.add(controls, "speed", 0.5, 4, 0.1);
+  gui
+    .add(
+      {
+        reset: function () {
+          controls.color = defaultControls.color;
+          controls.speed = defaultControls.speed;
+          controls.octaves = defaultControls.octaves;
+          controls.tesselations = defaultControls.tesselations;
+          gui.updateDisplay();
+        },
+      },
+      "reset"
+    )
+    .name("Reset to Defaults");
+
   // gui.add(controls, "freq", 0, 10, 0.1);
   // gui.add(controls, "noiseSelection", noiseOptions);
   // gui.add(controls, "Load Scene");
@@ -60,6 +89,11 @@ function main() {
   // `setGL` is a function imported above which sets the value of `gl` in the `globals.ts` module.
   // Later, we can import `gl` from `globals.ts` to access it
   setGL(gl);
+  canvas.addEventListener("mousemove", (event: MouseEvent) => {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = event.clientX - rect.left;
+    mouseY = event.clientY - rect.top;
+  });
 
   // Initial call to load scene
   loadScene();
@@ -93,9 +127,9 @@ function main() {
       1
     );
 
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    gl.disable(gl.CULL_FACE);
+    // gl.enable(gl.BLEND);
+    // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    // gl.disable(gl.CULL_FACE);
 
     renderer.render(
       camera,
@@ -105,7 +139,10 @@ function main() {
         // square,
         // cube,
       ],
-      color
+      color,
+      [mouseX, mouseY],
+      controls.octaves,
+      controls.speed
     );
 
     stats.end();
